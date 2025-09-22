@@ -153,7 +153,7 @@ const checkPhoneExists = async (phone, excludeId = null) => {
 // Check if email exists
 const checkEmailExists = async (email, excludeId = null) => {
   // Don't check for default email
-  if (email === 'member@revivefitness.com') {
+  if (!email || email === 'member@revivefitness.com') {
     return false;
   }
   
