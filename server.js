@@ -1,7 +1,6 @@
 // server.js
 const app = require('./src/app');
-const { initializeDatabase, getPool } = require('./src/config/database');
-const pool = getPool();
+const { initializeDatabase, pool } = require('./src/config/database');
 const { autoExpireMembers } = require('./src/services/memberService');
 
 const PORT = process.env.PORT || 5000;
