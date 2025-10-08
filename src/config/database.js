@@ -1,30 +1,23 @@
 // src/config/database.js
 const { Pool } = require('pg');
 
-let pool; // don't create immediately
+// PostgreSQL connection with Neon-specific configuration
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
 
-function getPool() {
-  if (!pool) {
-    console.log('🔄 Creating new PostgreSQL pool...');
-    pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
-    });
-
-    pool.on('error', (err) => {
-      console.error('Unexpected error on idle PostgreSQL client:', err);
-      pool = null; // Reset pool if it breaks
-    });
-  }
-  return pool;
-}
+// Handle unexpected pool errors
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle PostgreSQL client:', err);
+});
 
 async function initializeDatabase() {
   try {
-    const activePool = getPool();
     console.log('🔧 Initializing database...');
 
-    await activePool.query(`
+    // Create members table
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS members (
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
@@ -40,12 +33,14 @@ async function initializeDatabase() {
       )
     `);
 
-    await activePool.query(`CREATE INDEX IF NOT EXISTS idx_members_email ON members(email)`);
-    await activePool.query(`CREATE INDEX IF NOT EXISTS idx_members_phone ON members(phone)`);
-    await activePool.query(`CREATE INDEX IF NOT EXISTS idx_members_payment_status ON members(payment_status)`);
-    await activePool.query(`CREATE INDEX IF NOT EXISTS idx_members_end_date ON members(end_date)`);
+    // Create indexes for better performance
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_members_email ON members(email)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_members_phone ON members(phone)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_members_payment_status ON members(payment_status)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_members_end_date ON members(end_date)`);
 
-    await activePool.query(`
+    // Create updated_at trigger function
+    await pool.query(`
       CREATE OR REPLACE FUNCTION update_updated_at_column()
       RETURNS TRIGGER AS $$
       BEGIN
@@ -55,7 +50,8 @@ async function initializeDatabase() {
       $$ language 'plpgsql'
     `);
 
-    await activePool.query(`
+    // Create trigger
+    await pool.query(`
       DROP TRIGGER IF EXISTS update_members_updated_at ON members;
       CREATE TRIGGER update_members_updated_at 
           BEFORE UPDATE ON members 
@@ -70,4 +66,4 @@ async function initializeDatabase() {
   }
 }
 
-module.exports = { getPool, initializeDatabase };
+module.exports = { pool, initializeDatabase };
