@@ -33,11 +33,12 @@ const autoExpireMembers = async () => {
   }
 };
 
-// Get all members with optional filtering
-const getAllMembers = async (search, status) => {
+// Get all members with optional filtering and pagination
+const getAllMembers = async (search, status, page = 1, limit = 20) => {
   await autoExpireMembers();
   
   let query = 'SELECT * FROM members';
+  let countQuery = 'SELECT COUNT(*) FROM members';
   let params = [];
   let conditions = [];
 
@@ -52,13 +53,31 @@ const getAllMembers = async (search, status) => {
   }
 
   if (conditions.length > 0) {
-    query += ' WHERE ' + conditions.join(' AND ');
+    const whereClause = ' WHERE ' + conditions.join(' AND ');
+    query += whereClause;
+    countQuery += whereClause;
   }
 
   query += ' ORDER BY created_at DESC';
+  
+  // Get total count
+  const countResult = await pool.query(countQuery, params);
+  const total = parseInt(countResult.rows[0].count);
+  const totalPages = Math.ceil(total / limit);
+  
+  // Add pagination
+  const offset = (page - 1) * limit;
+  query += ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+  params.push(limit, offset);
 
   const result = await pool.query(query, params);
-  return result.rows.map(formatMemberData);
+  
+  return {
+    members: result.rows.map(formatMemberData),
+    total,
+    totalPages,
+    hasMore: page < totalPages
+  };
 };
 
 // Get single member by ID
