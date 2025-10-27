@@ -14,12 +14,62 @@ const {
   checkEmailExists
 } = require('../services/memberService');
 
-// Get all members
+// Check if phone exists - MUST be before /:id route
+router.get('/check-phone/:phone', async (req, res) => {
+  try {
+    const { phone } = req.params;
+    const { excludeId } = req.query;
+    
+    const exists = await checkPhoneExists(phone, excludeId);
+    res.json({ exists });
+  } catch (err) {
+    console.error('Error checking phone:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Check if email exists - MUST be before /:id route
+router.get('/check-email/:email', async (req, res) => {
+  try {
+    const { email } = req.params;
+    const { excludeId } = req.query;
+    
+    const decodedEmail = decodeURIComponent(email);
+    const exists = await checkEmailExists(decodedEmail, excludeId);
+    res.json({ exists });
+  } catch (err) {
+    console.error('Error checking email:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get all members with pagination
 router.get('/', async (req, res) => {
   try {
-    const { search, status } = req.query;
-    const members = await getAllMembers(search, status);
-    res.json(members);
+    const { search, status, page = 1, limit = 20 } = req.query;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    
+    console.log('GET /members - Query params:', { search, status, page: pageNum, limit: limitNum });
+    
+    const result = await getAllMembers(search, status, pageNum, limitNum);
+    
+    console.log('GET /members - Result:', {
+      membersCount: result.members.length,
+      total: result.total,
+      page: pageNum,
+      totalPages: result.totalPages,
+      hasMore: result.hasMore
+    });
+    
+    // Return in the format the frontend expects
+    res.json({
+      data: result.members,
+      total: result.total,
+      page: pageNum,
+      totalPages: result.totalPages,
+      hasMore: result.hasMore
+    });
   } catch (err) {
     console.error('Error fetching members:', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -46,7 +96,6 @@ router.get('/:id', async (req, res) => {
 // Create new member
 router.post('/', upload.single('photo'), async (req, res) => {
   try {
-    console.log('Received data:', req.body);
     
     const validatedData = validateMemberData(req.body);
     let photoUrl = null;
@@ -64,12 +113,13 @@ router.post('/', upload.single('photo'), async (req, res) => {
     res.status(201).json(member);
   } catch (err) {
     console.error('Error creating member:', err);
+    console.error('Error details:', err.message);
     if (err.code === '23505') {
       res.status(400).json({ error: 'Email already exists' });
     } else if (err.message.includes('required') || err.message.includes('Invalid')) {
       res.status(400).json({ error: err.message });
     } else {
-      res.status(500).json({ error: 'Internal server error' });
+      res.status(500).json({ error: 'Internal server error', details: err.message });
     }
   }
 });
@@ -78,8 +128,6 @@ router.post('/', upload.single('photo'), async (req, res) => {
 router.put('/:id', upload.single('photo'), async (req, res) => {
   try {
     const { id } = req.params;
-    console.log('Updating member:', id, 'with data:', req.body);
-    
     const validatedData = validateMemberData(req.body);
     let photoUrl = null;
     
@@ -134,35 +182,6 @@ router.delete('/:id', async (req, res) => {
     res.json({ message: 'Member deleted successfully' });
   } catch (err) {
     console.error('Error deleting member:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Check if phone exists
-router.get('/check-phone/:phone', async (req, res) => {
-  try {
-    const { phone } = req.params;
-    const { excludeId } = req.query;
-    
-    const exists = await checkPhoneExists(phone, excludeId);
-    res.json({ exists });
-  } catch (err) {
-    console.error('Error checking phone:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Check if email exists
-router.get('/check-email/:email', async (req, res) => {
-  try {
-    const { email } = req.params;
-    const { excludeId } = req.query;
-    
-    const decodedEmail = decodeURIComponent(email);
-    const exists = await checkEmailExists(decodedEmail, excludeId);
-    res.json({ exists });
-  } catch (err) {
-    console.error('Error checking email:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
