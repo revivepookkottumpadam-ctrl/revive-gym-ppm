@@ -30,8 +30,12 @@ app.use('/uploads', express.static('uploads'));
 
 // ✅ Health check route 
 app.get('/', (req, res) => {
-  res.send('✅ Server is awake and running');
+  res.status(200).json({
+    success: true,
+    message: '✅ Server is awake and running'
+  });
 });
+
 
 // Routes
 app.use('/api/members', membersRoutes);
