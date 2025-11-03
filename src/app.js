@@ -27,6 +27,12 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 
+
+// ✅ Health check route 
+app.get('/', (req, res) => {
+  res.send('✅ Server is awake and running');
+});
+
 // Routes
 app.use('/api/members', membersRoutes);
 app.use('/api/dashboard', dashboardRoutes);
