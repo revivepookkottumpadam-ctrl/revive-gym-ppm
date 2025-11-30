@@ -58,7 +58,14 @@ const getAllMembers = async (search, status, page = 1, limit = 20) => {
     countQuery += whereClause;
   }
 
-  query += ' ORDER BY created_at DESC';
+  // Conditional sorting: Only sort by days unpaid when status filter is 'unpaid'
+  if (status === 'unpaid') {
+    // For unpaid section: Sort by least days unpaid first (most recent unpaid at top)
+    query += ` ORDER BY (CURRENT_DATE - end_date) ASC, created_at DESC`;
+  } else {
+    // For 'all' and 'paid' sections: Keep original order
+    query += ` ORDER BY created_at DESC`;
+  }
   
   // Get total count
   const countResult = await pool.query(countQuery, params);
