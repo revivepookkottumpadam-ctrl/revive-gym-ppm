@@ -32,15 +32,7 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 // Start server only after database is initialized
 async function startServer() {
   try {
-    console.log('🔄 Starting server initialization...');
-    console.log('📝 Environment variables check:');
-    console.log('  DATABASE_URL:', process.env.DATABASE_URL ? '✓ SET' : '✗ MISSING');
-    console.log('  ADMIN1_USERNAME:', process.env.ADMIN1_USERNAME ? '✓ SET' : '✗ MISSING');
-    console.log('  ADMIN1_PASSWORD:', process.env.ADMIN1_PASSWORD ? '✓ SET' : '✗ MISSING');
-    
-    console.log('\n🔄 Calling initializeDatabase()...');
     await initializeDatabase();
-    console.log('✅ initializeDatabase() completed\n');
 
     const server = app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
