@@ -70,10 +70,25 @@ async function initializeDatabase() {
       )
     `);
 
+    console.log('📊 Checking existing admins...');
+    
     // Seed predefined admins if none exist
     const adminCheck = await pool.query('SELECT COUNT(*) FROM admins');
-    if (parseInt(adminCheck.rows[0].count) === 0) {
+    const adminCount = parseInt(adminCheck.rows[0].count);
+    
+    console.log(`👥 Found ${adminCount} existing admin(s)`);
+
+    if (adminCount === 0) {
       console.log('👤 Seeding default admin users...');
+      
+      // Check environment variables
+      console.log('🔍 Checking environment variables...');
+      console.log('ADMIN1_USERNAME exists:', !!process.env.ADMIN1_USERNAME);
+      console.log('ADMIN1_PASSWORD exists:', !!process.env.ADMIN1_PASSWORD);
+      console.log('ADMIN2_USERNAME exists:', !!process.env.ADMIN2_USERNAME);
+      console.log('ADMIN2_PASSWORD exists:', !!process.env.ADMIN2_PASSWORD);
+      console.log('ADMIN3_USERNAME exists:', !!process.env.ADMIN3_USERNAME);
+      console.log('ADMIN3_PASSWORD exists:', !!process.env.ADMIN3_PASSWORD);
       
       const admins = [
         { 
@@ -90,20 +105,36 @@ async function initializeDatabase() {
         }
       ];
 
-      for (const admin of admins) {
+      let createdCount = 0;
+      
+      for (let i = 0; i < admins.length; i++) {
+        const admin = admins[i];
+        
         if (!admin.username || !admin.password) {
-          console.warn('⚠️ Skipping admin with missing credentials'); // FIXED THIS LINE
+          console.warn(`⚠️ Skipping admin ${i + 1} - missing credentials`);
           continue;
         }
         
-        const hashedPassword = await bcrypt.hash(admin.password, 10);
-        await pool.query(
-          'INSERT INTO admins (username, password) VALUES ($1, $2)',
-          [admin.username, hashedPassword]
-        );
-        console.log(`✅ Created admin: ${admin.username}`);
+        try {
+          const hashedPassword = await bcrypt.hash(admin.password, 10);
+          await pool.query(
+            'INSERT INTO admins (username, password) VALUES ($1, $2)',
+            [admin.username, hashedPassword]
+          );
+          console.log(`✅ Created admin ${i + 1}: ${admin.username}`);
+          createdCount++;
+        } catch (error) {
+          console.error(`❌ Failed to create admin ${i + 1}:`, error.message);
+        }
       }
-      console.log('✅ Admin users seeded');
+      
+      if (createdCount > 0) {
+        console.log(`✅ Successfully seeded ${createdCount} admin user(s)`);
+      } else {
+        console.error('❌ No admin users were created! Please check environment variables.');
+      }
+    } else {
+      console.log('ℹ️ Admin users already exist, skipping seed');
     }
 
     console.log('✅ Database initialized successfully');
