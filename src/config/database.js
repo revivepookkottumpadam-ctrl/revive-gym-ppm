@@ -86,81 +86,58 @@ async function initializeDatabase() {
     client.release();
   }
 
-  // NOW seed admins (outside transaction)
-  try {
-    console.log('📊 Checking for existing admins...');
-    
-    const adminCheck = await pool.query('SELECT COUNT(*) as count FROM admins');
-    const adminCount = parseInt(adminCheck.rows[0].count);
-    
-    console.log(`👥 Current admin count: ${adminCount}`);
+// ================= ADMIN SEEDING =================
+try {
+  console.log('🔐 Running admin seeding logic...');
 
-    if (adminCount === 0) {
-      console.log('🔐 No admins found. Starting admin creation...');
-      console.log('🔍 Environment check:');
-      console.log('  - ADMIN1_USERNAME:', process.env.ADMIN1_USERNAME ? '✓ SET' : '✗ MISSING');
-      console.log('  - ADMIN1_PASSWORD:', process.env.ADMIN1_PASSWORD ? '✓ SET' : '✗ MISSING');
-      console.log('  - ADMIN2_USERNAME:', process.env.ADMIN2_USERNAME ? '✓ SET' : '✗ MISSING');
-      console.log('  - ADMIN2_PASSWORD:', process.env.ADMIN2_PASSWORD ? '✓ SET' : '✗ MISSING');
-      console.log('  - ADMIN3_USERNAME:', process.env.ADMIN3_USERNAME ? '✓ SET' : '✗ MISSING');
-      console.log('  - ADMIN3_PASSWORD:', process.env.ADMIN3_PASSWORD ? '✓ SET' : '✗ MISSING');
-      
-      const admins = [
-        { 
-          username: process.env.ADMIN1_USERNAME, 
-          password: process.env.ADMIN1_PASSWORD,
-          name: 'Admin 1'
-        },
-        { 
-          username: process.env.ADMIN2_USERNAME, 
-          password: process.env.ADMIN2_PASSWORD,
-          name: 'Admin 2'
-        },
-        { 
-          username: process.env.ADMIN3_USERNAME, 
-          password: process.env.ADMIN3_PASSWORD,
-          name: 'Admin 3'
-        }
-      ];
+  const admins = [
+    {
+      username: process.env.ADMIN1_USERNAME,
+      password: process.env.ADMIN1_PASSWORD,
+      label: 'ADMIN 1',
+    },
+    {
+      username: process.env.ADMIN2_USERNAME,
+      password: process.env.ADMIN2_PASSWORD,
+      label: 'ADMIN 2',
+    },
+    {
+      username: process.env.ADMIN3_USERNAME,
+      password: process.env.ADMIN3_PASSWORD,
+      label: 'ADMIN 3',
+    },
+  ];
 
-      let successCount = 0;
-      
-      for (const admin of admins) {
-        if (!admin.username || !admin.password) {
-          console.log(`⚠️  Skipping ${admin.name}: Missing credentials`);
-          continue;
-        }
-        
-        try {
-          console.log(`🔨 Creating ${admin.name} (${admin.username})...`);
-          const hashedPassword = await bcrypt.hash(admin.password, 10);
-          
-          await pool.query(
-            'INSERT INTO admins (username, password) VALUES ($1, $2) ON CONFLICT (username) DO NOTHING',
-            [admin.username, hashedPassword]
-          );
-          
-          console.log(`✅ ${admin.name} created successfully`);
-          successCount++;
-        } catch (error) {
-          console.error(`❌ Failed to create ${admin.name}:`, error.message);
-        }
-      }
-      
-      console.log(`\n🎉 Admin creation complete: ${successCount}/${admins.length} successful\n`);
-      
-      if (successCount === 0) {
-        console.error('⚠️⚠️⚠️ WARNING: NO ADMINS WERE CREATED! Check environment variables! ⚠️⚠️⚠️');
-      }
-    } else {
-      console.log('ℹ️  Admins already exist. Skipping creation.');
+  for (const admin of admins) {
+    if (!admin.username || !admin.password) {
+      console.log(`⚠️ ${admin.label} skipped (missing env vars)`);
+      continue;
     }
-    
-  } catch (error) {
-    console.error('❌ Admin seeding failed:', error);
-    // Don't throw - allow server to start even if admin seeding fails
+
+    const exists = await pool.query(
+      'SELECT id, password FROM admins WHERE username = $1',
+      [admin.username]
+    );
+
+    if (exists.rowCount > 0) {
+      console.log(`ℹ️ ${admin.label} already exists`);
+      continue;
+    }
+
+    const hashedPassword = await bcrypt.hash(admin.password, 10);
+
+    await pool.query(
+      'INSERT INTO admins (username, password) VALUES ($1, $2)',
+      [admin.username, hashedPassword]
+    );
+
+    console.log(`✅ ${admin.label} created successfully`);
   }
-  
+
+} catch (err) {
+  console.error('❌ Admin seeding error:', err);
+}
+
   console.log('✅ Database initialization complete\n');
 }
 
