@@ -5,6 +5,8 @@ require('dotenv').config();
 
 const corsMiddleware = require('./middleware/cors');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
+const { authenticateToken } = require('./middleware/auth');
+const authRoutes = require('./routes/auth');
 const membersRoutes = require('./routes/members');
 const dashboardRoutes = require('./routes/dashboard');
 
@@ -38,8 +40,9 @@ app.get('/', (req, res) => {
 
 
 // Routes
-app.use('/api/members', membersRoutes);
-app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/members', authenticateToken, membersRoutes);
+app.use('/api/dashboard', authenticateToken, dashboardRoutes);
 
 // Auto-expire endpoint
 app.post('/api/auto-expire', async (req, res) => {

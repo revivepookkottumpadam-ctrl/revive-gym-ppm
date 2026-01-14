@@ -1,10 +1,13 @@
 // src/config/database.js
 const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
 
-// PostgreSQL connection with Neon-specific configuration
+// PostgreSQL connection with flexible SSL configuration
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+  ssl: process.env.DATABASE_URL?.includes('neon') || process.env.DATABASE_URL?.includes('supabase')
+    ? { rejectUnauthorized: false }
+    : false,
 });
 
 // Handle unexpected pool errors
@@ -58,6 +61,53 @@ async function initializeDatabase() {
           FOR EACH ROW 
           EXECUTE FUNCTION update_updated_at_column()
     `);
+
+    // Create admins table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS admins (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(255) UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Seed predefined admins if none exist
+    const adminCheck = await pool.query('SELECT COUNT(*) FROM admins');
+    if (parseInt(adminCheck.rows[0].count) === 0) {
+      console.log('👤 Seeding default admin users...');
+      
+      // Load admin credentials from environment variables
+      const admins = [
+        { 
+          username: process.env.ADMIN1_USERNAME, 
+          password: process.env.ADMIN1_PASSWORD 
+        },
+        { 
+          username: process.env.ADMIN2_USERNAME, 
+          password: process.env.ADMIN2_PASSWORD 
+        },
+        { 
+          username: process.env.ADMIN3_USERNAME, 
+          password: process.env.ADMIN3_PASSWORD 
+        }
+      ];
+
+      for (const admin of admins) {
+        // Skip if username or password is missing
+        if (!admin.username || !admin.password) {
+          console.warn(`⚠️ Skipping admin with missing credentials`);
+          continue;
+        }
+
+        const hashedPassword = await bcrypt.hash(admin.password, 10);
+        await pool.query(
+          'INSERT INTO admins (username, password) VALUES ($1, $2)',
+          [admin.username, hashedPassword]
+        );
+      }
+      console.log('✅ Admin users seeded');
+    }
 
     console.log('✅ Database initialized successfully');
   } catch (error) {

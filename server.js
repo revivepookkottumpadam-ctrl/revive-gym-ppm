@@ -1,4 +1,5 @@
 // server.js
+require('dotenv').config();
 const app = require('./src/app');
 const { initializeDatabase, pool } = require('./src/config/database');
 const { autoExpireMembers } = require('./src/services/memberService');
@@ -32,7 +33,7 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 async function startServer() {
   try {
     await initializeDatabase();
-    
+
     const server = app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log('🔧 Cloudinary configured:', !!process.env.CLOUDINARY_CLOUD_NAME);
