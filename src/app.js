@@ -1,9 +1,9 @@
 // src/app.js
 const express = require('express');
-const cors = require('cors');
 const fs = require('fs');
 require('dotenv').config();
 
+const corsMiddleware = require('./middleware/cors');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const { authenticateToken } = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
@@ -17,38 +17,18 @@ if (!fs.existsSync('uploads')) {
   fs.mkdirSync('uploads');
 }
 
-// ===== CORS CONFIGURATION (ONLY HERE!) =====
-const allowedOrigins = process.env.CORS_ORIGIN 
-  ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
-  : ['http://localhost:5173'];
-
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, Postman, etc.)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.log('❌ Blocked by CORS:', origin);
-      console.log('✅ Allowed origins:', allowedOrigins);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  optionsSuccessStatus: 200
-}));
+// Middleware
+app.use(corsMiddleware);
 
 // Request logging
 app.use((req, res, next) => {
-  console.log(`${req.method} ${req.path} - Origin: ${req.headers.origin || 'none'}`);
+  console.log(`${req.method} ${req.path}`);
   next();
 });
 
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
+
 
 // ✅ Health check route 
 app.get('/', (req, res) => {
@@ -57,6 +37,7 @@ app.get('/', (req, res) => {
     message: '✅ Server is awake and running'
   });
 });
+
 
 // Routes
 app.use('/api/auth', authRoutes);
