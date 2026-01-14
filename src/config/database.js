@@ -14,11 +14,15 @@ pool.on('error', (err) => {
 });
 
 async function initializeDatabase() {
+  const client = await pool.connect();
+  
   try {
     console.log('🔧 Initializing database...');
     
+    await client.query('BEGIN');
+    
     // Create members table
-    await pool.query(`
+    await client.query(`
       CREATE TABLE IF NOT EXISTS members (
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
@@ -35,13 +39,13 @@ async function initializeDatabase() {
     `);
 
     // Create indexes
-    await pool.query('CREATE INDEX IF NOT EXISTS idx_members_email ON members(email)');
-    await pool.query('CREATE INDEX IF NOT EXISTS idx_members_phone ON members(phone)');
-    await pool.query('CREATE INDEX IF NOT EXISTS idx_members_payment_status ON members(payment_status)');
-    await pool.query('CREATE INDEX IF NOT EXISTS idx_members_end_date ON members(end_date)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_members_email ON members(email)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_members_phone ON members(phone)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_members_payment_status ON members(payment_status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_members_end_date ON members(end_date)');
 
     // Create updated_at trigger function
-    await pool.query(`
+    await client.query(`
       CREATE OR REPLACE FUNCTION update_updated_at_column()
       RETURNS TRIGGER AS $$
       BEGIN
@@ -52,7 +56,7 @@ async function initializeDatabase() {
     `);
 
     // Create trigger
-    await pool.query(`
+    await client.query(`
       DROP TRIGGER IF EXISTS update_members_updated_at ON members;
       CREATE TRIGGER update_members_updated_at 
           BEFORE UPDATE ON members 
@@ -61,7 +65,7 @@ async function initializeDatabase() {
     `);
 
     // Create admins table
-    await pool.query(`
+    await client.query(`
       CREATE TABLE IF NOT EXISTS admins (
         id SERIAL PRIMARY KEY,
         username VARCHAR(255) UNIQUE NOT NULL,
@@ -70,78 +74,94 @@ async function initializeDatabase() {
       )
     `);
 
-    console.log('📊 Checking existing admins...');
+    await client.query('COMMIT');
     
-    // Seed predefined admins if none exist
-    const adminCheck = await pool.query('SELECT COUNT(*) FROM admins');
+    console.log('✅ Tables created successfully');
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Database initialization failed:', error);
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  // NOW seed admins (outside transaction)
+  try {
+    console.log('📊 Checking for existing admins...');
+    
+    const adminCheck = await pool.query('SELECT COUNT(*) as count FROM admins');
     const adminCount = parseInt(adminCheck.rows[0].count);
     
-    console.log(`👥 Found ${adminCount} existing admin(s)`);
+    console.log(`👥 Current admin count: ${adminCount}`);
 
     if (adminCount === 0) {
-      console.log('👤 Seeding default admin users...');
-      
-      // Check environment variables
-      console.log('🔍 Checking environment variables...');
-      console.log('ADMIN1_USERNAME exists:', !!process.env.ADMIN1_USERNAME);
-      console.log('ADMIN1_PASSWORD exists:', !!process.env.ADMIN1_PASSWORD);
-      console.log('ADMIN2_USERNAME exists:', !!process.env.ADMIN2_USERNAME);
-      console.log('ADMIN2_PASSWORD exists:', !!process.env.ADMIN2_PASSWORD);
-      console.log('ADMIN3_USERNAME exists:', !!process.env.ADMIN3_USERNAME);
-      console.log('ADMIN3_PASSWORD exists:', !!process.env.ADMIN3_PASSWORD);
+      console.log('🔐 No admins found. Starting admin creation...');
+      console.log('🔍 Environment check:');
+      console.log('  - ADMIN1_USERNAME:', process.env.ADMIN1_USERNAME ? '✓ SET' : '✗ MISSING');
+      console.log('  - ADMIN1_PASSWORD:', process.env.ADMIN1_PASSWORD ? '✓ SET' : '✗ MISSING');
+      console.log('  - ADMIN2_USERNAME:', process.env.ADMIN2_USERNAME ? '✓ SET' : '✗ MISSING');
+      console.log('  - ADMIN2_PASSWORD:', process.env.ADMIN2_PASSWORD ? '✓ SET' : '✗ MISSING');
+      console.log('  - ADMIN3_USERNAME:', process.env.ADMIN3_USERNAME ? '✓ SET' : '✗ MISSING');
+      console.log('  - ADMIN3_PASSWORD:', process.env.ADMIN3_PASSWORD ? '✓ SET' : '✗ MISSING');
       
       const admins = [
         { 
           username: process.env.ADMIN1_USERNAME, 
-          password: process.env.ADMIN1_PASSWORD 
+          password: process.env.ADMIN1_PASSWORD,
+          name: 'Admin 1'
         },
         { 
           username: process.env.ADMIN2_USERNAME, 
-          password: process.env.ADMIN2_PASSWORD 
+          password: process.env.ADMIN2_PASSWORD,
+          name: 'Admin 2'
         },
         { 
           username: process.env.ADMIN3_USERNAME, 
-          password: process.env.ADMIN3_PASSWORD 
+          password: process.env.ADMIN3_PASSWORD,
+          name: 'Admin 3'
         }
       ];
 
-      let createdCount = 0;
+      let successCount = 0;
       
-      for (let i = 0; i < admins.length; i++) {
-        const admin = admins[i];
-        
+      for (const admin of admins) {
         if (!admin.username || !admin.password) {
-          console.warn(`⚠️ Skipping admin ${i + 1} - missing credentials`);
+          console.log(`⚠️  Skipping ${admin.name}: Missing credentials`);
           continue;
         }
         
         try {
+          console.log(`🔨 Creating ${admin.name} (${admin.username})...`);
           const hashedPassword = await bcrypt.hash(admin.password, 10);
+          
           await pool.query(
-            'INSERT INTO admins (username, password) VALUES ($1, $2)',
+            'INSERT INTO admins (username, password) VALUES ($1, $2) ON CONFLICT (username) DO NOTHING',
             [admin.username, hashedPassword]
           );
-          console.log(`✅ Created admin ${i + 1}: ${admin.username}`);
-          createdCount++;
+          
+          console.log(`✅ ${admin.name} created successfully`);
+          successCount++;
         } catch (error) {
-          console.error(`❌ Failed to create admin ${i + 1}:`, error.message);
+          console.error(`❌ Failed to create ${admin.name}:`, error.message);
         }
       }
       
-      if (createdCount > 0) {
-        console.log(`✅ Successfully seeded ${createdCount} admin user(s)`);
-      } else {
-        console.error('❌ No admin users were created! Please check environment variables.');
+      console.log(`\n🎉 Admin creation complete: ${successCount}/${admins.length} successful\n`);
+      
+      if (successCount === 0) {
+        console.error('⚠️⚠️⚠️ WARNING: NO ADMINS WERE CREATED! Check environment variables! ⚠️⚠️⚠️');
       }
     } else {
-      console.log('ℹ️ Admin users already exist, skipping seed');
+      console.log('ℹ️  Admins already exist. Skipping creation.');
     }
-
-    console.log('✅ Database initialized successfully');
+    
   } catch (error) {
-    console.error('❌ Database initialization failed:', error);
-    throw error;
+    console.error('❌ Admin seeding failed:', error);
+    // Don't throw - allow server to start even if admin seeding fails
   }
+  
+  console.log('✅ Database initialization complete\n');
 }
 
 module.exports = { pool, initializeDatabase };
