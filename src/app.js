@@ -17,18 +17,16 @@ if (!fs.existsSync('uploads')) {
   fs.mkdirSync('uploads');
 }
 
-// Middleware
+// Middleware - CORRECT ORDER
 app.use(corsMiddleware);
+app.use(express.json()); // ⬅️ MOVE THIS UP, BEFORE LOGGING
+app.use('/uploads', express.static('uploads'));
 
 // Request logging
 app.use((req, res, next) => {
-  console.log(`${req.method} ${req.path}`);
+  console.log(`${req.method} ${req.path}`, req.body); // Add req.body to see data
   next();
 });
-
-app.use(express.json());
-app.use('/uploads', express.static('uploads'));
-
 
 // ✅ Health check route 
 app.get('/', (req, res) => {
@@ -37,7 +35,6 @@ app.get('/', (req, res) => {
     message: '✅ Server is awake and running'
   });
 });
-
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -60,8 +57,8 @@ app.post('/api/auto-expire', async (req, res) => {
   }
 });
 
-// Error handling
-app.use(errorHandler);
+// Error handling - THESE MUST BE LAST
 app.use(notFoundHandler);
+app.use(errorHandler);
 
 module.exports = app;

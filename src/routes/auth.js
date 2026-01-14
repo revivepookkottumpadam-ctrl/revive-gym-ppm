@@ -6,11 +6,15 @@ const { pool } = require('../config/database');
 
 const router = express.Router();
 
-// JWT secret (in production, use environment variable)
+console.log('✅ Auth routes module loaded'); // Add this
+
+// JWT secret
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 // POST /api/auth/login - Login endpoint
 router.post('/login', async (req, res) => {
+    console.log('🔐 Login endpoint hit!', { body: req.body }); // Add this
+    
     try {
         const { username, password } = req.body;
 
