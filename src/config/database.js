@@ -2,7 +2,6 @@
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 
-// PostgreSQL connection with flexible SSL configuration
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.DATABASE_URL?.includes('neon') || process.env.DATABASE_URL?.includes('supabase')
@@ -10,7 +9,6 @@ const pool = new Pool({
     : false,
 });
 
-// Handle unexpected pool errors
 pool.on('error', (err) => {
   console.error('Unexpected error on idle PostgreSQL client:', err);
 });
@@ -18,7 +16,7 @@ pool.on('error', (err) => {
 async function initializeDatabase() {
   try {
     console.log('🔧 Initializing database...');
-
+    
     // Create members table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS members (
@@ -36,11 +34,11 @@ async function initializeDatabase() {
       )
     `);
 
-    // Create indexes for better performance
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_members_email ON members(email)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_members_phone ON members(phone)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_members_payment_status ON members(payment_status)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_members_end_date ON members(end_date)`);
+    // Create indexes
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_members_email ON members(email)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_members_phone ON members(phone)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_members_payment_status ON members(payment_status)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_members_end_date ON members(end_date)');
 
     // Create updated_at trigger function
     await pool.query(`
@@ -77,7 +75,6 @@ async function initializeDatabase() {
     if (parseInt(adminCheck.rows[0].count) === 0) {
       console.log('👤 Seeding default admin users...');
       
-      // Load admin credentials from environment variables
       const admins = [
         { 
           username: process.env.ADMIN1_USERNAME, 
@@ -94,17 +91,17 @@ async function initializeDatabase() {
       ];
 
       for (const admin of admins) {
-        // Skip if username or password is missing
         if (!admin.username || !admin.password) {
-          console.warn(`⚠️ Skipping admin with missing credentials`);
+          console.warn('⚠️ Skipping admin with missing credentials'); // FIXED THIS LINE
           continue;
         }
-
+        
         const hashedPassword = await bcrypt.hash(admin.password, 10);
         await pool.query(
           'INSERT INTO admins (username, password) VALUES ($1, $2)',
           [admin.username, hashedPassword]
         );
+        console.log(`✅ Created admin: ${admin.username}`);
       }
       console.log('✅ Admin users seeded');
     }
