@@ -88,54 +88,47 @@ async function initializeDatabase() {
 
 // ================= ADMIN SEEDING =================
 try {
-  console.log('🔐 Running admin seeding logic...');
+  if (process.env.SEED_ADMINS !== 'true') {
+    console.log('ℹ️ Admin seeding skipped (SEED_ADMINS not true)');
+  } else {
+    console.log('🔐 Admin seeding enabled');
 
-  const admins = [
-    {
-      username: process.env.ADMIN1_USERNAME,
-      password: process.env.ADMIN1_PASSWORD,
-      label: 'ADMIN 1',
-    },
-    {
-      username: process.env.ADMIN2_USERNAME,
-      password: process.env.ADMIN2_PASSWORD,
-      label: 'ADMIN 2',
-    },
-    {
-      username: process.env.ADMIN3_USERNAME,
-      password: process.env.ADMIN3_PASSWORD,
-      label: 'ADMIN 3',
-    },
-  ];
+    const admins = [
+      { u: process.env.ADMIN1_USERNAME, p: process.env.ADMIN1_PASSWORD },
+      { u: process.env.ADMIN2_USERNAME, p: process.env.ADMIN2_PASSWORD },
+      { u: process.env.ADMIN3_USERNAME, p: process.env.ADMIN3_PASSWORD },
+    ];
 
-  for (const admin of admins) {
-    if (!admin.username || !admin.password) {
-      console.log(`⚠️ ${admin.label} skipped (missing env vars)`);
-      continue;
+    for (const admin of admins) {
+      if (!admin.u || !admin.p) {
+        console.log('⚠️ Skipping admin (missing env vars)');
+        continue;
+      }
+
+      const exists = await pool.query(
+        'SELECT 1 FROM admins WHERE username = $1',
+        [admin.u]
+      );
+
+      if (exists.rowCount > 0) {
+        console.log(`ℹ️ Admin ${admin.u} already exists`);
+        continue;
+      }
+
+      const hash = await bcrypt.hash(admin.p, 10);
+
+      await pool.query(
+        'INSERT INTO admins (username, password) VALUES ($1, $2)',
+        [admin.u, hash]
+      );
+
+      console.log(`✅ Admin ${admin.u} seeded`);
     }
 
-    const exists = await pool.query(
-      'SELECT id, password FROM admins WHERE username = $1',
-      [admin.username]
-    );
-
-    if (exists.rowCount > 0) {
-      console.log(`ℹ️ ${admin.label} already exists`);
-      continue;
-    }
-
-    const hashedPassword = await bcrypt.hash(admin.password, 10);
-
-    await pool.query(
-      'INSERT INTO admins (username, password) VALUES ($1, $2)',
-      [admin.username, hashedPassword]
-    );
-
-    console.log(`✅ ${admin.label} created successfully`);
+    console.log('🎉 Admin seeding completed');
   }
-
 } catch (err) {
-  console.error('❌ Admin seeding error:', err);
+  console.error('❌ Admin seeding failed:', err);
 }
 
   console.log('✅ Database initialization complete\n');
