@@ -21,11 +21,11 @@ const autoExpireMembers = async () => {
       AND payment_status = 'paid'
       RETURNING id, name, email
     `);
-    
+
     if (result.rows.length > 0) {
       console.log(`Auto-expired ${result.rows.length} members:`, result.rows.map(m => m.name));
     }
-    
+
     return result.rows;
   } catch (error) {
     console.error('Error auto-expiring members:', error);
@@ -36,7 +36,7 @@ const autoExpireMembers = async () => {
 // Get all members with optional filtering and pagination
 const getAllMembers = async (search, status, page = 1, limit = 20) => {
   await autoExpireMembers();
-  
+
   let query = 'SELECT * FROM members';
   let countQuery = 'SELECT COUNT(*) FROM members';
   let params = [];
@@ -66,19 +66,19 @@ const getAllMembers = async (search, status, page = 1, limit = 20) => {
     // For 'all' and 'paid' sections: Keep original order
     query += ` ORDER BY created_at DESC`;
   }
-  
+
   // Get total count
   const countResult = await pool.query(countQuery, params);
   const total = parseInt(countResult.rows[0].count);
   const totalPages = Math.ceil(total / limit);
-  
+
   // Add pagination
   const offset = (page - 1) * limit;
   query += ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
   params.push(limit, offset);
 
   const result = await pool.query(query, params);
-  
+
   return {
     members: result.rows.map(formatMemberData),
     total,
@@ -99,13 +99,14 @@ const getMemberById = async (id) => {
 // Create new member
 const createMember = async (memberData, photoUrl = null) => {
   const result = await pool.query(
-    `INSERT INTO members (name, email, phone, membership_type, start_date, end_date, payment_status, photo_url) 
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+    `INSERT INTO members (name, email, phone, membership_type, weight, start_date, end_date, payment_status, photo_url) 
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
     [
       memberData.name,
       memberData.email,
       memberData.phone,
       memberData.membershipType,
+      memberData.weight || 0,
       memberData.startDate,
       memberData.endDate,
       memberData.paymentStatus,
@@ -126,13 +127,14 @@ const updateMember = async (id, memberData, photoUrl = null) => {
 
   const result = await pool.query(
     `UPDATE members SET name = $1, email = $2, phone = $3, membership_type = $4, 
-     start_date = $5, end_date = $6, payment_status = $7, photo_url = $8 
-     WHERE id = $9 RETURNING *`,
+     weight = $5, start_date = $6, end_date = $7, payment_status = $8, photo_url = $9 
+     WHERE id = $10 RETURNING *`,
     [
       memberData.name,
       memberData.email,
       memberData.phone,
       memberData.membershipType,
+      memberData.weight || 0,
       memberData.startDate,
       memberData.endDate,
       memberData.paymentStatus,
@@ -156,22 +158,22 @@ const deleteMember = async (id) => {
 
   const photoUrl = memberResult.rows[0].photo_url;
   await pool.query('DELETE FROM members WHERE id = $1', [id]);
-  
+
   return { photoUrl };
 };
 
 // Check if phone exists
 const checkPhoneExists = async (phone, excludeId = null) => {
   const cleanPhone = phone.replace(/\D/g, '');
-  
+
   let query = 'SELECT id FROM members WHERE REGEXP_REPLACE(phone, \'[^0-9]\', \'\', \'g\') = $1';
   let params = [cleanPhone];
-  
+
   if (excludeId) {
     query += ' AND id != $2';
     params.push(excludeId);
   }
-  
+
   const result = await pool.query(query, params);
   return result.rows.length > 0;
 };
@@ -182,15 +184,15 @@ const checkEmailExists = async (email, excludeId = null) => {
   if (!email || email === 'member@revivefitness.com') {
     return false;
   }
-  
+
   let query = 'SELECT id FROM members WHERE LOWER(email) = LOWER($1)';
   let params = [email];
-  
+
   if (excludeId) {
     query += ' AND id != $2';
     params.push(excludeId);
   }
-  
+
   const result = await pool.query(query, params);
   return result.rows.length > 0;
 };

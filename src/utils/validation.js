@@ -26,7 +26,7 @@ const validateMemberData = (data) => {
   if (!data.phone || data.phone.trim() === '') {
     throw new Error('Phone is required');
   }
-  
+
   const cleanPhone = data.phone.replace(/\D/g, '');
   if (cleanPhone.length < 10) {
     throw new Error('Phone number must have at least 10 digits');
@@ -65,12 +65,19 @@ const validateMemberData = (data) => {
     throw new Error('End date must be after start date');
   }
 
+  // Weight validation
+  const weight = data.weight ? parseFloat(data.weight) : 0;
+  if (isNaN(weight) || weight < 0) {
+    throw new Error('Invalid weight value');
+  }
+
   return {
     name: data.name.trim(),
     email: data.email.trim(),
     phone: data.phone.trim(),
     membershipType: data.membershipType,
     paymentStatus: data.paymentStatus,
+    weight: weight,
     startDate: data.startDate,
     endDate: data.endDate
   };

@@ -9,11 +9,11 @@ router.get('/stats', async (req, res) => {
   try {
     // Auto-expire members before calculating stats
     await autoExpireMembers();
-    
+
     const totalMembersResult = await pool.query('SELECT COUNT(*) FROM members');
     const activeMembersResult = await pool.query("SELECT COUNT(*) FROM members WHERE payment_status = 'paid'");
     const unpaidMembersResult = await pool.query("SELECT COUNT(*) FROM members WHERE payment_status = 'unpaid'");
-    
+
     const expiringMembersResult = await pool.query(
       'SELECT COUNT(*) FROM members WHERE end_date <= CURRENT_DATE + INTERVAL \'7 days\' AND end_date >= CURRENT_DATE'
     );
@@ -42,6 +42,7 @@ router.get('/expiring', async (req, res) => {
         email, 
         phone, 
         membership_type, 
+        weight,
         start_date, 
         end_date, 
         payment_status, 

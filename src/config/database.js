@@ -27,6 +27,7 @@ async function initializeDatabase() {
         email VARCHAR(255) UNIQUE NOT NULL,
         phone VARCHAR(20) NOT NULL,
         membership_type VARCHAR(50) NOT NULL CHECK (membership_type IN ('monthly', 'quarterly', 'yearly')),
+        weight DECIMAL(5,2) DEFAULT 0,
         start_date DATE NOT NULL,
         end_date DATE NOT NULL,
         payment_status VARCHAR(20) NOT NULL DEFAULT 'unpaid' CHECK (payment_status IN ('paid', 'unpaid')),
@@ -36,11 +37,22 @@ async function initializeDatabase() {
       )
     `);
 
+    // Ensure weight column exists if table was already created
+    await pool.query(`
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='members' AND column_name='weight') THEN
+          ALTER TABLE members ADD COLUMN weight DECIMAL(5,2) DEFAULT 0;
+        END IF;
+      END $$;
+    `);
+
     // Create indexes for better performance
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_members_email ON members(email)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_members_phone ON members(phone)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_members_payment_status ON members(payment_status)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_members_end_date ON members(end_date)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_members_weight ON members(weight)`);
 
     // Create updated_at trigger function
     await pool.query(`
