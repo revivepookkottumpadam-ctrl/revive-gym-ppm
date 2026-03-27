@@ -43,8 +43,16 @@ const getAllMembers = async (search, status, page = 1, limit = 20) => {
   let conditions = [];
 
   if (search) {
-    conditions.push(`(name ILIKE $${params.length + 1} OR email ILIKE $${params.length + 1})`);
-    params.push(`%${search}%`);
+    const cleanSearch = search.replace(/\D/g, '');
+    if (cleanSearch.length > 0) {
+      // Search by name, email, or cleaned phone number matching cleaned search term
+      conditions.push(`(name ILIKE $${params.length + 1} OR email ILIKE $${params.length + 1} OR REGEXP_REPLACE(phone, '[^0-9]', '', 'g') ILIKE $${params.length + 2})`);
+      params.push(`%${search}%`);
+      params.push(`%${cleanSearch}%`);
+    } else {
+      conditions.push(`(name ILIKE $${params.length + 1} OR email ILIKE $${params.length + 1} OR phone ILIKE $${params.length + 1})`);
+      params.push(`%${search}%`);
+    }
   }
 
   if (status && status !== 'all') {
@@ -58,19 +66,24 @@ const getAllMembers = async (search, status, page = 1, limit = 20) => {
     countQuery += whereClause;
   }
 
-  // Conditional sorting: Only sort by days unpaid when status filter is 'unpaid'
-  if (status === 'unpaid') {
-    // For unpaid section: Sort by least days unpaid first (most recent unpaid at top)
-    query += ` ORDER BY (CURRENT_DATE - end_date) ASC, created_at DESC`;
-  } else {
-    // For 'all' and 'paid' sections: Keep original order
-    query += ` ORDER BY created_at DESC`;
-  }
-
   // Get total count
   const countResult = await pool.query(countQuery, params);
   const total = parseInt(countResult.rows[0].count);
   const totalPages = Math.ceil(total / limit);
+
+  // Conditional sorting: Prioritize names starting with search term
+  let sortExpression = '';
+  if (search) {
+    const startsWithParam = `$${params.length + 1}`;
+    params.push(`${search}%`);
+    sortExpression = `(CASE WHEN name ILIKE ${startsWithParam} THEN 1 ELSE 2 END) ASC, `;
+  }
+
+  if (status === 'unpaid') {
+    query += ` ORDER BY ${sortExpression} (CURRENT_DATE - end_date) ASC, created_at DESC`;
+  } else {
+    query += ` ORDER BY ${sortExpression} created_at DESC`;
+  }
 
   // Add pagination
   const offset = (page - 1) * limit;
