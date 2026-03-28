@@ -80,9 +80,9 @@ const getAllMembers = async (search, status, page = 1, limit = 20) => {
   }
 
   if (status === 'unpaid') {
-    query += ` ORDER BY ${sortExpression} (CURRENT_DATE - end_date) ASC, created_at DESC`;
+    query += ` ORDER BY ${sortExpression} (CURRENT_DATE - end_date) ASC, created_at DESC, id DESC`;
   } else {
-    query += ` ORDER BY ${sortExpression} created_at DESC`;
+    query += ` ORDER BY ${sortExpression} created_at DESC, id DESC`;
   }
 
   // Add pagination
